@@ -2,11 +2,11 @@
 #include <omp.h>
 
 #define NUM_THREADS 4
-#define PAD 8                 // 8*double ≈ 64-byte cache line
+#define PAD 8                 
 static long num_steps = 100000000;
 double step;
 
-// 1) False sharing sürümü
+// 1) False sharing 
 void pi_false_sharing() {
     double sum[NUM_THREADS];
     double pi = 0.0;
@@ -22,7 +22,7 @@ void pi_false_sharing() {
         int nthrds = omp_get_num_threads();
         if (id == 0) nthreads = nthrds;
 
-        double x, sum_local = 0.0;   // <-- döngü öncesi
+        double x, sum_local = 0.0;   
         long i;
         for (i = id; i < num_steps; i += nthrds) {
             x = (i + 0.5) * step;
@@ -31,16 +31,15 @@ void pi_false_sharing() {
         sum[id] = sum_local;
     }
 
-    for (int i = 0; i < nthreads; ++i)  // <-- sadece gerçek thread sayısı
+    for (int i = 0; i < nthreads; ++i) 
         pi += sum[i] * step;
 
     double t1 = omp_get_wtime();
     printf("[1] False Sharing   : pi = %.10f | time = %.4f s\n", pi, t1 - t0);
 }
 
-// 2) Padded sürüm (false sharing yok)
 void pi_padded() {
-    double sum[NUM_THREADS][PAD] = {{0}};  // güvenlik
+    double sum[NUM_THREADS][PAD] = {{0}};  
     double pi = 0.0;
     int nthreads = 1;
     step = 1.0 / (double)num_steps;
@@ -54,13 +53,13 @@ void pi_padded() {
         int nthrds = omp_get_num_threads();
         if (id == 0) nthreads = nthrds;
 
-        double x, sum_local = 0.0;   // <-- döngü öncesi
+        double x, sum_local = 0.0;   
         long i;
         for (i = id; i < num_steps; i += nthrds) {
             x = (i + 0.5) * step;
             sum_local += 4.0 / (1.0 + x * x);
         }
-        sum[id][0] = sum_local;      // her thread kendi cache satırında
+        sum[id][0] = sum_local;      
     }
 
     for (int i = 0; i < nthreads; ++i)
@@ -70,7 +69,6 @@ void pi_padded() {
     printf("[2] Padded          : pi = %.10f | time = %.4f s\n", pi, t1 - t0);
 }
 
-// 3) Critical ile global toplama (lock)
 void pi_critical() {
     double pi = 0.0;
     step = 1.0 / (double)num_steps;
@@ -98,7 +96,6 @@ void pi_critical() {
     printf("[3] Critical        : pi = %.10f | time = %.4f s\n", pi, t1 - t0);
 }
 
-// 4) Atomic ile global toplama (HW atomik)
 void pi_atomic() {
     double pi = 0.0;
     step = 1.0 / (double)num_steps;
