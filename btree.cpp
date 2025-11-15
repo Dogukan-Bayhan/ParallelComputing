@@ -8,7 +8,6 @@ class HFTBTree {
     static constexpr int MAX_KEYS  = ORDER * 2;
     static constexpr int MAX_CHILD = MAX_KEYS + 1;
 
-    // Cache-line aligned node to avoid false sharing
     struct alignas(64) Node {
         bool leaf;
         uint16_t keyCount;
@@ -26,8 +25,7 @@ class HFTBTree {
 
     Node* root;
 
-    // Custom arena allocator
-    static constexpr size_t ARENA_SIZE = 1ull << 26; // 64MB
+    static constexpr size_t ARENA_SIZE = 1ull << 26; 
     uint8_t* arena;
     size_t arenaOffset;
 
@@ -39,21 +37,16 @@ class HFTBTree {
 
 public:
     HFTBTree() {
-        // Pre-allocate arena memory (no malloc during runtime)
         arena = reinterpret_cast<uint8_t*>(aligned_alloc(64, ARENA_SIZE));
         arenaOffset = 0;
 
         root = allocNode(true);
     }
 
-    // ----------------------------
-    // FIND POSITION (Manual unrolled)
-    // ----------------------------
     inline int findPos(const Node* node, const Key& k) const {
         int i = 0;
         int n = node->keyCount;
 
-        // Manual unroll for HFT-level speed
         for (; i + 4 <= n; i += 4) {
             if (node->keys[i] >= k)     return i;
             if (node->keys[i + 1] >= k) return i + 1;
@@ -66,9 +59,6 @@ public:
         return n;
     }
 
-    // ----------------------------
-    // SEARCH (branchless walk)
-    // ----------------------------
     inline Value* search(const Key& k) {
         Node* cur = root;
         while (true) {
@@ -82,23 +72,18 @@ public:
 
 private:
 
-    // ----------------------------
-    // SPLIT CHILD (no recursion)
-    // ----------------------------
     inline void splitChild(Node* parent, int idx) {
         Node* fullNode = parent->child[idx];
         Node* newNode  = allocNode(fullNode->leaf);
 
         const int mid = MAX_KEYS / 2;
 
-        // Move keys/vals
         newNode->keyCount = MAX_KEYS - mid - 1;
         memcpy(newNode->keys, fullNode->keys + mid + 1,
                newNode->keyCount * sizeof(Key));
         memcpy(newNode->vals, fullNode->vals + mid + 1,
                newNode->keyCount * sizeof(Value));
 
-        // Move children if internal
         if (!fullNode->leaf) {
             memcpy(newNode->child,
                    fullNode->child + mid + 1,
@@ -107,7 +92,6 @@ private:
 
         fullNode->keyCount = mid;
 
-        // Insert new child into parent
         for (int i = parent->keyCount; i > idx; --i) {
             parent->child[i + 1] = parent->child[i];
             parent->keys[i]      = parent->keys[i - 1];
@@ -121,10 +105,6 @@ private:
     }
 
 public:
-
-    // ----------------------------
-    // INSERT
-    // ----------------------------
     inline void insert(const Key& k, const Value& v) {
         Node* r = root;
         if (r->full()) {
@@ -144,7 +124,6 @@ private:
         int i = node->keyCount - 1;
 
         if (node->leaf) {
-            // shift keys & vals manually
             while (i >= 0 && node->keys[i] > k) {
                 node->keys[i + 1] = node->keys[i];
                 node->vals[i + 1] = node->vals[i];
