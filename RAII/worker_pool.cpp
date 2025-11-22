@@ -1,0 +1,1 @@
+// Burada bir raii prensiplerine uygun bir workerpool implemente edicez
